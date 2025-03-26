@@ -59,7 +59,7 @@ const pokeList = [
 ];
 
 const client = new MongoClient(process.env.MONGO_URI);
-const dbName = "Pokemon-DB";
+const dbName = "pokemon_data";
 let db, pokemonCollection;
 
 // Connect to MongoDB Atlas
@@ -69,18 +69,8 @@ async function connectDB() {
     db = client.db(dbName);
     pokemonCollection = db.collection("pokemons");
     console.log("✅ Connected to MongoDB Atlas");
-
-    // Insert Pokémon Data if not present
-    const count = await pokemonCollection.countDocuments();
-    if (count === 0) {
-      await pokemonCollection.insertMany(pokeList);
-      console.log("✅ Pokémon Data Inserted Successfully");
-    } else {
-      console.log("ℹ️ Pokémon Data Already Exists, Skipping Insert");
-    }
   } catch (error) {
     console.error("❌ MongoDB Connection Error:", error);
-    process.exit(1);
   }
 }
 
@@ -99,6 +89,7 @@ connectDB().then(() => {
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       });
 
       res.write(JSON.stringify(pokemonList));
