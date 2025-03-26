@@ -1,11 +1,10 @@
 import http from "http";
 import url from "url";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
+import { MongoClient } from "mongodb";
 
 dotenv.config();
 
-// Pokémon Data
 const pokeList = [
   {
     pokeName: "metapod",
@@ -59,47 +58,43 @@ const pokeList = [
   },
 ];
 
-// Connect to MongoDB
-const connectDB = async () => {
+const client = new MongoClient(process.env.MONGO_URI);
+const dbName = "Pokemon-DB";
+let db, pokemonCollection;
+
+// Connect to MongoDB Atlas
+async function connectDB() {
   try {
-    await mongoose.connect("mongodb://localhost:27017/pokemon_data");
-    console.log("✅ MongoDB Connected");
+    await client.connect();
+    db = client.db(dbName);
+    pokemonCollection = db.collection("pokemons");
+    console.log("✅ Connected to MongoDB Atlas");
+
+    // Insert Pokémon Data if not present
+    const count = await pokemonCollection.countDocuments();
+    if (count === 0) {
+      await pokemonCollection.insertMany(pokeList);
+      console.log("✅ Pokémon Data Inserted Successfully");
+    } else {
+      console.log("ℹ️ Pokémon Data Already Exists, Skipping Insert");
+    }
   } catch (error) {
     console.error("❌ MongoDB Connection Error:", error);
     process.exit(1);
   }
-};
+}
 
-// Define Mongoose Schema & Model
-const pokeSchema = new mongoose.Schema({
-  pokeName: { type: String, required: true, unique: true },
-  pokeImageUrl: { type: String, required: true },
-});
-const Pokemon = mongoose.model("Pokemon", pokeSchema);
-
-// Insert Pokémon Data (if not already present)
-const insertPokemonData = async () => {
-  const count = await Pokemon.countDocuments();
-  if (count === 0) {
-    await Pokemon.insertMany(pokeList);
-    console.log("✅ Pokémon Data Inserted Successfully");
-  } else {
-    console.log("ℹ️ Pokémon Data Already Exists, Skipping Insert");
-  }
-};
-
-// Start Server After DB Connection & Data Insertion
-connectDB().then(async () => {
-  await insertPokemonData();
-
+// Start Server After DB Connection
+connectDB().then(() => {
   const server = http.createServer(async (req, res) => {
     const queryObj = url.parse(req.url, true).query;
     const limit = Number(queryObj.limit) || 5;
 
     try {
-      const pokemonList = await Pokemon.find({})
+      const pokemonList = await pokemonCollection
+        .find({}, { projection: { _id: 0, pokeName: 1, pokeImageUrl: 1 } })
         .limit(limit)
-        .select("pokeName pokeImageUrl -_id");
+        .toArray();
 
       res.writeHead(200, {
         "Content-Type": "application/json",
@@ -115,7 +110,5 @@ connectDB().then(async () => {
     }
   });
 
-  server.listen(5000, () =>
-    console.log("🚀 Server running on http://localhost:5000")
-  );
+  server.listen(process.env.PORT, () => console.log("🚀 Server running"));
 });
